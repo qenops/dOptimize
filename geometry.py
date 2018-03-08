@@ -90,11 +90,14 @@ def reflectRayMVPolynomial(p, rd, rp):
     fp = np.array([x,y,z])
     return fd, fp
 
-def flattenMVPolynomial(p, val, axis):
+def flattenMVPolynomial(p, val, axis=1):
+    '''
+      evaluate p in terms of remaining variable if remaining variable = val
+    '''
     final = np.poly1d(())
     for m in range(p.shape[axis]):
         a = np.poly1d(np.take(p,m,axis))
-        final += val**(d.shape[axis]-m-1)*a
+        final += val**(p.shape[axis]-m-1)*a
     return final
 
 def intersectMVLinePolynomial(p, lineY, lineZ):
@@ -102,13 +105,14 @@ def intersectMVLinePolynomial(p, lineY, lineZ):
       lines need to be poly1d
       poly needs to be poly2d
     '''
-    # convert y's to x's
-    # equate the z's (add the lineZ coeffs to poly1d)
-    # find roots of poly1d
+    flat = flattenMVPolynomial(p, lineY) # convert y's to x's
+    flat -= lineZ       # equate the z's (subtract the lineZ coeffs to poly)
+    roots = flat.roots  # find roots of poly1d
     # choose best real root as x
-    # eval lineY(x) for y
-    # eval lineZ(x) for z
-    # return x,y,z
+    x = np.real(roots[-1])  # ToDo: actually choose a good root, not just -1
+    y = lineY(x)        # eval lineY(x) for y
+    z = lineZ(x)        # eval lineZ(x) for z
+    return x,y,z
 
 def getMVPolyNormal(p, x, y):
     '''
