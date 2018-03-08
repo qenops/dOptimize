@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.core.numeric as NX
+from numpy.linalg import norm
 from numpy.lib.function_base import trim_zeros
 from numpy.polynomial.polynomial import polyval2d
 #import numpy.lib.polynomial._raise_power as _raise_power
@@ -69,10 +70,34 @@ def mvpolyfit():
 
     coeff, r, rank, s = np.linalg.lstsq(A, B)
 
-def flattenMVPolynomial(poly2d, poly1d):
-    pass
+def calcLineFromRay(rd, rp, axis, var):
+    if axis == var:
+        raise AttributeError('CalcLineFromRay: the axis cannot be the same as the variable')
+    if rd[var] == 0:
+        raise ValueError('CalcLineFromRay: Vector of variable cannot have 0 value')
+    m = rd[axis]/rd[var]
+    b = (rd[var]*rd[axis]*rp[axis]-rp[var]*rd[axis])/rd[var]
+    return m, b
 
-def intersectMVLinePolynomial(lineY, lineZ, poly):
+def reflectRayMVPolynomial(p, rd, rp):
+    m,b = calcLineFromRay(rd,rp,1,0)
+    lineY = np.poly1d([b,m])            # calc poly1ds for y of ray
+    m,b = calcLineFromRay(rd,rp,2,0)
+    lineZ = np.poly1d([b,m])            # calc poly1ds for y of ray
+    x,y,z = intersectMVLinePolynomial(p, lineY, lineZ) # intersect line and poly
+    n = getMVPolyNormal(p,x,y)          # find normal at intersection
+    fd = rd - 2*n*(np.dot(rd,n))        # from http://paulbourke.net/geometry/reflected/
+    fp = np.array([x,y,z])
+    return fd, fp
+
+def flattenMVPolynomial(p, val, axis):
+    final = np.poly1d(())
+    for m in range(p.shape[axis]):
+        a = np.poly1d(np.take(p,m,axis))
+        final += val**(d.shape[axis]-m-1)*a
+    return final
+
+def intersectMVLinePolynomial(p, lineY, lineZ):
     '''
       lines need to be poly1d
       poly needs to be poly2d
@@ -85,13 +110,18 @@ def intersectMVLinePolynomial(lineY, lineZ, poly):
     # eval lineZ(x) for z
     # return x,y,z
 
-def getNormal(p, x, y):
-    dx = polyder2d(p)           # get derivative with respect to x
-    gx = polyval2d(x,y,dx)      # evaluate for gradient wrt x
-    dy = polyder2d(p,1)         # get derivative with respect to y
-    gy = polyval2d(x,y,dy)      # evaluate for gradient wrt y
-    # translate them to vectors
-    # get cross product
+def getMVPolyNormal(p, x, y):
+    '''
+      calculate the normal vector for a 3d polynomial at x and y
+    '''
+    dx = polyder2d(p)                             # get derivative with respect to x
+    gx = polyval2d(x,y,np.fliplr(np.flipud(dx)))  # evaluate for gradient wrt x - why, oh why, is polynomial package backwards from polyval and poly1d?
+    gx = np.array((gx,0,1))                       # translate them to vectors
+    dy = polyder2d(p,1)                           # get derivative with respect to y
+    gy = polyval2d(x,y,np.fliplr(np.flipud(dy)))  # evaluate for gradient wrt y - why, oh why, is polynomial package backwards from polyval and poly1d?
+    gy = np.array((0,gy,1))                       # translate them to vectors
+    c = np.cross(gy,gx)                           # get cross product
+    return c/norm(c)
 
 def mvpolyval1d(p, val, axis=0):
     # ToDo: need to switch to Horner's method
