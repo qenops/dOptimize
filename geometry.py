@@ -1,71 +1,76 @@
 import numpy as np
+import numpy.core.numeric as NX
+from numpy.lib.function_base import trim_zeros
+from numpy.polynomial.polynomial import polyval2d
+#import numpy.lib.polynomial._raise_power as _raise_power
 
-p = np.array((0, .25))
-x = np.arange(-.002, .0021, .0001)
-xy = np.pad(np.reshape(x,(-1,1)),((0,0),(0,1)),'constant')
+def rayTrace():
+    p = np.array((0, .25))
+    x = np.arange(-.002, .0021, .0001)
+    xy = np.pad(np.reshape(x,(-1,1)),((0,0),(0,1)),'constant')
 
-vec = p-xy
-vec = np.divide(vec,np.reshape(np.linalg.norm(vec,axis=1),(-1,1)))
+    vec = p-xy
+    vec = np.divide(vec,np.reshape(np.linalg.norm(vec,axis=1),(-1,1)))
 
-p =-2.7
-d = 0.22
-y=a*x**2+c  # function attempting to optimize
-z=math.sqrt(1-d**2)
+    p =-2.7
+    d = 0.22
+    y=a*x**2+c  # function attempting to optimize
+    z=math.sqrt(1-d**2)
 
-# ray method
-t=(-2*a*p*d+z-math.sqrt(z**2-4*a*p*d*z-4*a*d**2*c))/(2*a*d**2)  # distance from p to intersection point
-x_0 = p+t*d
+    # ray method
+    t=(-2*a*p*d+z-math.sqrt(z**2-4*a*p*d*z-4*a*d**2*c))/(2*a*d**2)  # distance from p to intersection point
+    x_0 = p+t*d
 
-# geometric method
-m=z/d
-b=-m*p
-if d < 0: # {+-} based on if d and therefore m is positive/negative
-  x_0 = (m + math.sqrt(m**2-4*a*(c-b)))/2*a  
-elif d == 0:
-  x_0 = p
-else:
-  x_0 = (m - math.sqrt(m**2-4*a*(c-b)))/2*a  
+    # geometric method
+    m=z/d
+    b=-m*p
+    if d < 0: # {+-} based on if d and therefore m is positive/negative
+      x_0 = (m + math.sqrt(m**2-4*a*(c-b)))/2*a  
+    elif d == 0:
+      x_0 = p
+    else:
+      x_0 = (m - math.sqrt(m**2-4*a*(c-b)))/2*a  
 
-n=1/(-2*a*x_0)  # slope of normal
-y=n*x-n*x_0+a*x_0**2+c  # eqation for line that is the normal
+    n=1/(-2*a*x_0)  # slope of normal
+    y=n*x-n*x_0+a*x_0**2+c  # eqation for line that is the normal
 
-r_slope = ((2*n) + (m*n**2) - m) / (2*n*m - n**2 + 1)  # from https://stackoverflow.com/questions/17395860/how-to-reflect-a-line-over-another-line
-y=r_slope*x-r_slope*x_0+a*x_0**2+c  # eqation for line that is the reflection
-
-
-
-p0 = 4
-p1 = 0
-p2 = -.057
-p4 = .0003
-p6 = -.00002
-p8 = .000003
-p10 = -.0000004
-p12 = .00000002
-x = np.roots([p12,0,p10,0,p8,0,p6,0,p4,0,p2,p1-m,p0-b])[-1]
-x = np.real(x) if np.imag(x) == 0 else None
-
-poly = np.poly1d([p12,0,p10,0,p8,0,p6,0,p4,0,p2,p1,p0])
-grad  = 1/-poly.deriv()(x)
-y = poly(x)
+    r_slope = ((2*n) + (m*n**2) - m) / (2*n*m - n**2 + 1)  # from https://stackoverflow.com/questions/17395860/how-to-reflect-a-line-over-another-line
+    y=r_slope*x-r_slope*x_0+a*x_0**2+c  # eqation for line that is the reflection
 
 
-# Given X, Y, and Z points, this will return coefficeints for a polynomial which fits
-x = np.linspace(0, 1, 20)
-y = np.linspace(0, 1, 20)
-X, Y = np.meshgrid(x, y, copy=False)
-Z = X**2 + Y**2 + np.random.rand(*X.shape)*0.01
 
-X = X.flatten()
-Y = Y.flatten()
+    p0 = 4
+    p1 = 0
+    p2 = -.057
+    p4 = .0003
+    p6 = -.00002
+    p8 = .000003
+    p10 = -.0000004
+    p12 = .00000002
+    x = np.roots([p12,0,p10,0,p8,0,p6,0,p4,0,p2,p1-m,p0-b])[-1]
+    x = np.real(x) if np.imag(x) == 0 else None
 
-A = np.array([X*0+1, X, Y, X**2, X**2*Y, X**2*Y**2, Y**2, X*Y**2, X*Y]).T
-B = Z.flatten()
+    poly = np.poly1d([p12,0,p10,0,p8,0,p6,0,p4,0,p2,p1,p0])
+    grad  = 1/-poly.deriv()(x)
+    y = poly(x)
 
-coeff, r, rank, s = np.linalg.lstsq(A, B)
+def mvpolyfit():
+    # Given X, Y, and Z points, this will return coefficeints for a polynomial which fits
+    x = np.linspace(0, 1, 20)
+    y = np.linspace(0, 1, 20)
+    X, Y = np.meshgrid(x, y, copy=False)
+    Z = X**2 + Y**2 + np.random.rand(*X.shape)*0.01
+
+    X = X.flatten()
+    Y = Y.flatten()
+
+    A = np.array([X*0+1, X, Y, X**2, X**2*Y, X**2*Y**2, Y**2, X*Y**2, X*Y]).T
+    B = Z.flatten()
+
+    coeff, r, rank, s = np.linalg.lstsq(A, B)
 
 def flattenMVPolynomial(poly2d, poly1d):
-    
+    pass
 
 def intersectMVLinePolynomial(lineY, lineZ, poly):
     '''
@@ -80,19 +85,27 @@ def intersectMVLinePolynomial(lineY, lineZ, poly):
     # eval lineZ(x) for z
     # return x,y,z
 
-def getNormal(poly, x, y):
-    # get derivative with respect to x
-    # evaluate constant variable y
-    o = p.shape[axis]
-    o = np.power(val,NX.arange(o, 0, -1)-1)
-    p = p * np.meshgrid(o,o)[axis]
-    # get derivative with respect to y
-    # evaluate constant variable y
+def getNormal(p, x, y):
+    dx = polyder2d(p)           # get derivative with respect to x
+    gx = polyval2d(x,y,dx)      # evaluate for gradient wrt x
+    dy = polyder2d(p,1)         # get derivative with respect to y
+    gy = polyval2d(x,y,dy)      # evaluate for gradient wrt y
     # translate them to vectors
     # get cross product
 
-import numpy.core.numeric as NX
-import numpy.lib.polynomial._raise_power as _raise_power
+def mvpolyval1d(p, val, axis=0):
+    # ToDo: need to switch to Horner's method
+    # why would we ever need to do this?
+    truepoly = isinstance(p, poly2d)
+    p = NX.asarray(p)
+    o = p.shape[axis]
+    o = np.reshape(np.power(val,NX.arange(o, 0, -1)-1),(-1,1))
+    o = o if axis == 0 else o.T
+    p = p * o
+    y = np.sum(p,axis-1)
+    if truepoly:
+        y = poly1d(y)
+    return y
 
 def polyder2d(p, axis=0, m=1):
     m = int(m)
@@ -102,10 +115,10 @@ def polyder2d(p, axis=0, m=1):
     truepoly = isinstance(p, poly2d)
     p = NX.asarray(p)
     # calculate derivative
-    n = p.shape[axis-1] - 1
+    n = p.shape[axis] - 1
     o = np.reshape(NX.arange(n, 0, -1),(-1,1))
     o = o if axis != 0 else o.T
-    y = (np.take(p,np.arange(0,m-1),axis).T * o).T
+    y = (np.take(p,np.arange(0,n),axis).T * o).T
     if m == 0:
         val = p
     elif m == 1:
@@ -113,7 +126,7 @@ def polyder2d(p, axis=0, m=1):
     else:
         val = polyder2d(y, axis, m - 1)
     if truepoly:
-        val = poly1d(val)
+        val = poly2d(val)
     return val
 
 class poly2d(object):
@@ -177,7 +190,7 @@ class poly2d(object):
         c_or_p2d = np.atleast_2d(c_or_p2d)
         if c_or_p2d.ndim > 2:
             raise ValueError("Polynomial must be 2d only.")
-        c_or_p2d = trim_zeros(c_or_p2d, trim='f')
+        #c_or_p2d = trim_zeros(c_or_p2d, trim='f')
         if len(c_or_p2d) == 0:
             c_or_p2d = NX.array([[0.]])
         self._coeffs = c_or_p2d
@@ -366,7 +379,6 @@ From here down needs to be converted to 2d
         polyint : equivalent function
         """
         return poly1d(polyint(self.coeffs, m=m, k=k))
-'''
 
     def deriv(self, axis, m=1):
         """
@@ -377,3 +389,4 @@ From here down needs to be converted to 2d
         polyder : equivalent function
         """
         return poly1d(polyder2d(self.coeffs, axis, m=m))
+'''
