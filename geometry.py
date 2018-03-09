@@ -79,14 +79,35 @@ def calcLineFromRay(rd, rp, axis, var):
     b = (rd[var]*rd[axis]*rp[axis]-rp[var]*rd[axis])/rd[var]
     return m, b
 
+def chooseRoot(roots):
+    ''' choose best real root '''
+    # ToDo: actually choose a good root, not just -1
+    x = np.real(roots[-1])  
+    return x
+
 def reflectRayMVPolynomial(p, rd, rp):
-    m,b = calcLineFromRay(rd,rp,1,0)
-    lineY = np.poly1d([b,m])            # calc poly1ds for y of ray
-    m,b = calcLineFromRay(rd,rp,2,0)
-    lineZ = np.poly1d([b,m])            # calc poly1ds for y of ray
-    x,y,z = intersectMVLinePolynomial(p, lineY, lineZ) # intersect line and poly
+    if rd[0] == 0:
+        x = rp[0]
+        if rd[1] == 0:
+            y = rp[1]
+        else:
+            m,b = calcLineFromRay(rd,rp,2,1)
+            lineZy = np.poly1d([b,m])
+            polyZy = flattenMVPolynomial(p, x, axis=0)
+            polyZy -= lineZy
+            y = chooseRoot(polyZy.r)
+        z = polyval2d(x,y,np.fliplr(np.flipud(p)))
+    else:
+        m,b = calcLineFromRay(rd,rp,1,0)
+        lineY = np.poly1d([b,m])            # calc poly1ds for y of ray
+        m,b = calcLineFromRay(rd,rp,2,0)
+        lineZ = np.poly1d([b,m])            # calc poly1ds for y of ray
+        x,y,z = intersectMVLinePolynomial(p, lineY, lineZ) # intersect line and poly
     n = getMVPolyNormal(p,x,y)          # find normal at intersection
+    print(n)
     fd = rd - 2*n*(np.dot(rd,n))        # from http://paulbourke.net/geometry/reflected/
+    print(fd)
+    fd = fd/norm(fd)
     fp = np.array([x,y,z])
     return fd, fp
 
@@ -107,9 +128,7 @@ def intersectMVLinePolynomial(p, lineY, lineZ):
     '''
     flat = flattenMVPolynomial(p, lineY) # convert y's to x's
     flat -= lineZ       # equate the z's (subtract the lineZ coeffs to poly)
-    roots = flat.roots  # find roots of poly1d
-    # choose best real root as x
-    x = np.real(roots[-1])  # ToDo: actually choose a good root, not just -1
+    x = chooseRoot(flat.roots)  # find roots of poly1d
     y = lineY(x)        # eval lineY(x) for y
     z = lineZ(x)        # eval lineZ(x) for z
     return x,y,z
@@ -120,11 +139,12 @@ def getMVPolyNormal(p, x, y):
     '''
     dx = polyder2d(p)                             # get derivative with respect to x
     gx = polyval2d(x,y,np.fliplr(np.flipud(dx)))  # evaluate for gradient wrt x - why, oh why, is polynomial package backwards from polyval and poly1d?
-    gx = np.array((gx,0,1))                       # translate them to vectors
+    #gx = np.array((1,0,gx))                       # translate them to vectors
     dy = polyder2d(p,1)                           # get derivative with respect to y
     gy = polyval2d(x,y,np.fliplr(np.flipud(dy)))  # evaluate for gradient wrt y - why, oh why, is polynomial package backwards from polyval and poly1d?
-    gy = np.array((0,gy,1))                       # translate them to vectors
-    c = np.cross(gy,gx)                           # get cross product
+    #gy = np.array((0,1,gy))                       # translate them to vectors
+    #c = np.cross(gx,gy)                           # get cross product
+    c = np.array((gx,gy,-1))                      # axis aligned orthoganal - no need for cross product
     return c/norm(c)
 
 def mvpolyval1d(p, val, axis=0):
