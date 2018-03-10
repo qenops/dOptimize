@@ -86,34 +86,36 @@ def chooseRoot(roots):
     return x
 
 def reflectRayMVPolynomial(p, rd, rp):
+    '''
+      reflect the ray definded by point rp and vector rd on the surface of polynomial p
+    '''
     if rd[0] == 0:
         x = rp[0]
         if rd[1] == 0:
             y = rp[1]
         else:
             m,b = calcLineFromRay(rd,rp,2,1)
-            lineZy = np.poly1d([b,m])
-            polyZy = flattenMVPolynomial(p, x, axis=0)
+            lineZy = np.poly1d([m,b])
+            polyZy = partialEvalMVPolynomial(p, x, axis=0) 
             polyZy -= lineZy
             y = chooseRoot(polyZy.r)
         z = polyval2d(x,y,np.fliplr(np.flipud(p)))
     else:
         m,b = calcLineFromRay(rd,rp,1,0)
-        lineY = np.poly1d([b,m])            # calc poly1ds for y of ray
+        lineYx = np.poly1d([m,b])            # calc poly1ds for y of ray
         m,b = calcLineFromRay(rd,rp,2,0)
-        lineZ = np.poly1d([b,m])            # calc poly1ds for y of ray
-        x,y,z = intersectMVLinePolynomial(p, lineY, lineZ) # intersect line and poly
+        lineZx = np.poly1d([m,b])            # calc poly1ds for y of ray
+        x,y,z = intersectMVLinePolynomial(p, lineYx, lineZx) # intersect line and poly
     n = getMVPolyNormal(p,x,y)          # find normal at intersection
-    print(n)
     fd = rd - 2*n*(np.dot(rd,n))        # from http://paulbourke.net/geometry/reflected/
-    print(fd)
     fd = fd/norm(fd)
     fp = np.array([x,y,z])
     return fd, fp
 
-def flattenMVPolynomial(p, val, axis=1):
+def partialEvalMVPolynomial(p, val, axis=1):
     '''
-      evaluate p in terms of remaining variable if remaining variable = val
+      evaluate p in terms of remaining variable if (axis)th variable = val
+      val can be a scalar or a polynomial
     '''
     final = np.poly1d(())
     for m in range(p.shape[axis]):
@@ -124,9 +126,9 @@ def flattenMVPolynomial(p, val, axis=1):
 def intersectMVLinePolynomial(p, lineY, lineZ):
     '''
       lines need to be poly1d
-      poly needs to be poly2d
+      p needs to be poly2d
     '''
-    flat = flattenMVPolynomial(p, lineY) # convert y's to x's
+    flat = partialEvalMVPolynomial(p, lineY) # convert y's to x's
     flat -= lineZ       # equate the z's (subtract the lineZ coeffs to poly)
     x = chooseRoot(flat.roots)  # find roots of poly1d
     y = lineY(x)        # eval lineY(x) for y
