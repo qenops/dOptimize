@@ -69,8 +69,69 @@ def mvpolyfit():
     B = Z.flatten()
 
     coeff, r, rank, s = np.linalg.lstsq(A, B)
+    
+def calcLoss(p, **kwargs)
+    val = np.array(())
+    for allRealWorld points
+        np.std(calcSpotDiagram(p, realPoint, **kwargs), axis=0)
+        val.append()
+    return val
+    
+
+def calcSpotDiagram(p, realPoint, pupilRadius=.4, displayNormal=np.array((0,0,1)), displayPoint=np.array((0,0,1)), **kwargs):
+    rds, rps = do.generateRayBundle(realPoint, pupilRadius, numAxis=2, **kwargs)
+    reflectedRays = np.apply_along_axis(reflectRayMVPolynomialAAA, 1, np.concatenate((rds, rps),axis=1), p)
+    # ToDo: This should probably be changed to calculate x,y values on the display plane, not 3d points in space
+    return np.apply_along_axis(intersectRayPlaneAAA, 1, reflectedRays, displayNormal, displayPoint)
+    
+
+def dnorm(a):
+    return a/norm(a)
+
+def linspace2d(start1, start2, stop1, stop2, steps):
+    l = len(start1)
+    start = linspace1d(start1, stop1, steps)
+    stop = linspace1d(start2, stop2, steps)
+    arr = np.append(start, stop, axis=1)
+    def foo(a, s):
+        return linspace1d(a[:l],a[l:],steps).flatten()
+    return np.reshape(np.apply_along_axis(foo, 1, arr, steps),[steps,steps,l])
+
+def linspace1d(start, stop, steps):
+    arr = np.stack((start,stop))
+    def foo(a, s):
+        return np.linspace(a[0],a[1],s)
+    return np.apply_along_axis(foo, 0, arr, steps)
+
+def generateRayBundle(realPoint, pupilRadius, pupilCenter=np.array([0.,0.,0.]), pupilNormal=np.array([0.,0.,1.]), numRays=21, numAxis=1, includeNegatives=True, **kwargs):
+    '''
+        returns a set of rays across the pupil all looking at the realPoint
+    '''
+    # calculate the origin points accross the plane of the pupil
+    c1 = np.cross(pupilNormal, [1,0,0])
+    c2 = np.cross(pupilNormal, [0,1,0])
+    vec1 = c1 if norm(c1) > norm(c2) else c2
+    vec1 = vec1/norm(vec1)
+    vec2 = np.cross(pupilNormal, vec1)
+    vec2 = vec2/norm(vec2)
+    start = vec1 * -pupilRadius + pupilCenter if includeNegatives else pupilCenter
+    stop = vec1 * pupilRadius + pupilCenter
+    if numAxis == 1:
+        points = linspace1d(start,stop, numRays)
+    elif numAxis==2:
+        start1 = start + vec2 * -pupilRadius if includeNegatives else pupilCenter
+        stop1 = stop + vec2 * -pupilRadius if includeNegatives else stop
+        start2 = start + vec2 * pupilRadius
+        stop2 = stop + vec2 * pupilRadius
+        points = np.reshape(linspace2d(start1, start2, stop1, stop2, numRays),[-1,3])
+    vectors = realPoint - points
+    vectors = np.apply_along_axis(dnorm,1,vectors)
+    return vectors, points
 
 def calcLineFromRay(rd, rp, axis, var):
+    '''
+        compute the slope and intercept of the projection of a 3d line on the [axis][var] plane by defining [axis] in terms of [var]
+    '''
     if axis == var:
         raise AttributeError('CalcLineFromRay: the axis cannot be the same as the variable')
     if rd[var] == 0:
@@ -84,6 +145,10 @@ def chooseRoot(roots):
     # ToDo: actually choose a good root, not just -1
     x = np.real(roots[-1])  
     return x
+
+def reflectRayMVPolynomialAAA(r, p):
+    fd, fp = reflectRayMVPolynomial(p,r[:3],r[3:])
+    return np.concatenate((fd, fp))
 
 def reflectRayMVPolynomial(p, rd, rp):
     '''
@@ -122,6 +187,18 @@ def partialEvalMVPolynomial(p, val, axis=1):
         a = np.poly1d(np.take(p,m,axis))
         final += val**(p.shape[axis]-m-1)*a
     return final
+
+def intersectRayPlaneAAA(r,pn,pp):
+    return intersectRayPlane(r[:3],r[3:],pn,pp)
+
+def intersectRayPlane(rd,rp,pn,pp):
+    denom = np.dot(rd,pn)
+    if denom == 0:
+        return None
+    dist = (np.dot(pp-rp,rn))/denom
+    if dist <= 0:
+        return None
+    return dist*rd + rp 
 
 def intersectMVLinePolynomial(p, lineY, lineZ):
     '''
