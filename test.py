@@ -15,9 +15,10 @@ class TestPolynomialMethods(unittest.TestCase):
         fd, fp = do.reflectRayMVPolynomial(p, rd, rp)
         self.assertEqual(fp, np.array([0.,0.,5.]))
 
-    def test_isupper(self):
-        self.assertTrue('FOO'.isupper())
-        self.assertFalse('Foo'.isupper())
+    def test_intersection(self):
+        target = np.array([0,0,5])
+        rds, rps = do.generateRayBundle(target, pupilRadius, numAxis=2, numRays=3)
+        reflectedRays = np.apply_along_axis(do.reflectRayMVPolynomialAAA, 1, np.concatenate((rds, rps),axis=1), p)
 
     def test_split(self):
         s = 'hello world'

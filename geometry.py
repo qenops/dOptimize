@@ -70,9 +70,9 @@ def mvpolyfit():
 
     coeff, r, rank, s = np.linalg.lstsq(A, B)
     
-def calcLoss(p, **kwargs)
+def calcLoss(p, **kwargs):
     val = np.array(())
-    for allRealWorld points
+    for realPoint in realWorldPoints:
         np.std(calcSpotDiagram(p, realPoint, **kwargs), axis=0)
         val.append()
     return val
@@ -137,7 +137,8 @@ def calcLineFromRay(rd, rp, axis, var):
     if rd[var] == 0:
         raise ValueError('CalcLineFromRay: Vector of variable cannot have 0 value')
     m = rd[axis]/rd[var]
-    b = (rd[var]*rd[axis]*rp[axis]-rp[var]*rd[axis])/rd[var]
+    b = -(rp[var]*rd[axis])/rd[var]+rp[axis]
+    #b = (rd[var]*rp[axis]-rp[var]*rd[axis])/rd[var]
     return m, b
 
 def chooseRoot(roots):
@@ -166,11 +167,17 @@ def reflectRayMVPolynomial(p, rd, rp):
             y = chooseRoot(polyZy.r)
         z = polyval2d(x,y,np.fliplr(np.flipud(p)))
     else:
+        #print('\nray point: %s'%rp)
         m,b = calcLineFromRay(rd,rp,1,0)
         lineYx = np.poly1d([m,b])            # calc poly1ds for y of ray
         m,b = calcLineFromRay(rd,rp,2,0)
         lineZx = np.poly1d([m,b])            # calc poly1ds for y of ray
-        x,y,z = intersectMVLinePolynomial(p, lineYx, lineZx) # intersect line and poly
+        if rd[1] != 0:
+            m,b = calcLineFromRay(rd,rp,2,1)
+            lineZy = np.poly1d([m,b])
+        else:
+            lineZy = np.poly1d(())
+        x,y,z = intersectMVLinePolynomial(p, lineYx, lineZx, lineZy) # intersect line and poly
     n = getMVPolyNormal(p,x,y)          # find normal at intersection
     fd = rd - 2*n*(np.dot(rd,n))        # from http://paulbourke.net/geometry/reflected/
     fd = fd/norm(fd)
@@ -195,21 +202,34 @@ def intersectRayPlane(rd,rp,pn,pp):
     denom = np.dot(rd,pn)
     if denom == 0:
         return None
-    dist = (np.dot(pp-rp,rn))/denom
+    dist = (np.dot(pp-rp,pn))/denom
     if dist <= 0:
         return None
     return dist*rd + rp 
 
-def intersectMVLinePolynomial(p, lineY, lineZ):
+def intersectMVLinePolynomial(p, lineYx, lineZx, lineZy):
     '''
       lines need to be poly1d
       p needs to be poly2d
     '''
-    flat = partialEvalMVPolynomial(p, lineY) # convert y's to x's
-    flat -= lineZ       # equate the z's (subtract the lineZ coeffs to poly)
+    # ToDo: crap, crap, crap!  This isn't going to work:
+    #   projecting the line onto the x axis and then intersecting with the polynomial
+    #   by definition cannot work - its ignoring the effects of y
+    #   is there a way to transform (rotate) the polynomial such that it is aligned? 
+    #       - should be if I add the correct line...but what is the correct line? 
+    #       - should be lineZy...but how to add?
+    #p[:,-1] = np.poly1d(p[:,-1]) + lineZy
+    #print(lineZy)
+    flat = partialEvalMVPolynomial(p, lineYx) # convert y's to x's
+    #print('lineYx: %s'%lineYx.coeffs)
+    #print('partialEval: %s'%flat.coeffs)
+    #print('lineZx: %s'%lineZx.coeffs)
+    flat -= lineZx       # equate the z's (subtract the lineZx coeffs to poly)
+    #print('flat: %s'%flat.coeffs)
+    #print(flat.r)
     x = chooseRoot(flat.roots)  # find roots of poly1d
-    y = lineY(x)        # eval lineY(x) for y
-    z = lineZ(x)        # eval lineZ(x) for z
+    y = lineYx(x)        # eval lineYx(x) for y
+    z = lineZx(x)        # eval lineZx(x) for z
     return x,y,z
 
 def getMVPolyNormal(p, x, y):
