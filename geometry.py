@@ -69,21 +69,55 @@ def mvpolyfit():
     B = Z.flatten()
 
     coeff, r, rank, s = np.linalg.lstsq(A, B)
-    
-def calcLoss(p, **kwargs):
-    val = np.array(())
-    for realPoint in realWorldPoints:
-        np.std(calcSpotDiagram(p, realPoint, **kwargs), axis=0)
-        val.append()
-    return val
-    
 
-def calcSpotDiagram(p, realPoint, pupilRadius=.4, displayNormal=np.array((0,0,1)), displayPoint=np.array((0,0,1)), **kwargs):
-    rds, rps = do.generateRayBundle(realPoint, pupilRadius, numAxis=2, **kwargs)
-    reflectedRays = np.apply_along_axis(reflectRayMVPolynomialAAA, 1, np.concatenate((rds, rps),axis=1), p)
+
+
+def optimizeDepth(p0, order, targetCenter, pupilCenter=np.array([0.,0.,0.]), fov=60, numTargets=11, targetAxes=2, numRays=11, **kwargs):
+    # generate realWorld Target points
+    dist = norm(targetCenter - pupilCenter)
+    targetNormal = dnorm(pupilCenter-targetCenter)
+    targetRadius = dist * math.tan(math.radians(fov/2))
+    realWorldPoints = generatePoints(targetRadius,targetCenter,targetNormal,numTargets,targetAxes)
+    # convert planar rwp to spherical
+    realWorldPoints = dist * np.apply_along_axis(dnorm, 1, realWorldPoints-pupilCenter)
+    # generate the pupil rays for each target point
+    pupilRays = np.zeros((realWorldPoints.shape[0], numRays**2, 6))
+    for idx, realPoint in enumerate(realWorldPoints):
+        pupilRays[idx] = generateRayBundle(realPoint, pupilRadius, numAxis=2, numRays=numRays, **kwargs)
+
+    # do the optimization
+
+
+    #np.apply_along_axis(calcLossAAA, 1, realWorldPoints, p, **kwargs)
+
+def calcLoss(p, order, pupilRays, even=True, **kwargs):
+    # build the polynomial: p has to be passed in as a 1d array and all top half elements are zero
+    step = 2 if even else 1
+    pLen = order//step+1
+    p0 = np.zeros((pLen,pLen))
+    expectedLength = pLen**2 - np.sum(range(pLen))
+    if len(p) != expectedLength:
+        raise ValueError('CalcLoss:  length of p is %s, but expected %s'%(len(p), expectedLength))
+    p = np.asarray(p)
+    l = np.array(range(pLen,1,-1))
+    l = np.insert(l,0,0)
+    l = np.cumsum(l).astype(int)
+    for i in range(pLen):               # fill in the triangle of values
+        p0[i:,-1-i] = p[l[:pLen-i]+i]   # don't worry - its magic
+    poly = np.zeros((order+1,order+1))
+    poly[::step,::step] = p0            # if this is even, all odd values are fixed at zero
+    results = np.zeros((pupilRays.shape[0], 3))
+    for idx, raySet in enumerate(pupilRays):
+        results[idx] = np.std(calcSpotDiagram(poly, pupilRays, **kwargs), axis=0)
+    return np.sum(results**2)
+
+def calcSpotDiagram(p, pupilRays, displayNormal=np.array((0,0,1)), displayPoint=np.array((0,0,1)), **kwargs):
+    reflectedRays = np.apply_along_axis(reflectRayMVPolynomialAAA, 1, pupilRays,axis=1), p)
+    reflectedRays = reflectedRays[~np.isnan(reflectedRays).any(axis=1)]
+    if len(reflectedRays) == 0:
+        return np.array([[float('nan')]*3])
     # ToDo: This should probably be changed to calculate x,y values on the display plane, not 3d points in space
     return np.apply_along_axis(intersectRayPlaneAAA, 1, reflectedRays, displayNormal, displayPoint)
-    
 
 def dnorm(a):
     return a/norm(a)
@@ -103,30 +137,34 @@ def linspace1d(start, stop, steps):
         return np.linspace(a[0],a[1],s)
     return np.apply_along_axis(foo, 0, arr, steps)
 
-def generateRayBundle(realPoint, pupilRadius, pupilCenter=np.array([0.,0.,0.]), pupilNormal=np.array([0.,0.,1.]), numRays=21, numAxis=1, includeNegatives=True, **kwargs):
-    '''
-        returns a set of rays across the pupil all looking at the realPoint
-    '''
+def generatePoints(radius,pcen,pn,numRays=11,numAxis=1,mirror=True):
     # calculate the origin points accross the plane of the pupil
-    c1 = np.cross(pupilNormal, [1,0,0])
-    c2 = np.cross(pupilNormal, [0,1,0])
+    c1 = np.cross(pn, [1,0,0])
+    c2 = np.cross(pn, [0,1,0])
     vec1 = c1 if norm(c1) > norm(c2) else c2
     vec1 = vec1/norm(vec1)
-    vec2 = np.cross(pupilNormal, vec1)
+    vec2 = np.cross(pn, vec1)
     vec2 = vec2/norm(vec2)
-    start = vec1 * -pupilRadius + pupilCenter if includeNegatives else pupilCenter
-    stop = vec1 * pupilRadius + pupilCenter
+    start = vec1 * -radius + pcen if mirror else pcen
+    stop = vec1 * radius + pcen
+    start1 = start + vec2 * -radius if mirror else pcen
+    stop1 = stop + vec2 * -radius if mirror else stop
+    start2 = start + vec2 * radius
+    stop2 = stop + vec2 * radius
     if numAxis == 1:
         points = linspace1d(start,stop, numRays)
     elif numAxis==2:
-        start1 = start + vec2 * -pupilRadius if includeNegatives else pupilCenter
-        stop1 = stop + vec2 * -pupilRadius if includeNegatives else stop
-        start2 = start + vec2 * pupilRadius
-        stop2 = stop + vec2 * pupilRadius
         points = np.reshape(linspace2d(start1, start2, stop1, stop2, numRays),[-1,3])
+    return points
+
+def generateRayBundle(realPoint, pupilRadius, pupilCenter=np.array([0.,0.,0.]), pupilNormal=np.array([0.,0.,1.]), numRays=11, numAxis=1, includeNegatives=True, **kwargs):
+    '''
+        returns a set of rays across the pupil all looking at the realPoint
+    '''
+    points = generatePoints(pupilRadius, pupilCenter, pupilNormal, numRays, numAxis, includeNegatives)
     vectors = realPoint - points
     vectors = np.apply_along_axis(dnorm,1,vectors)
-    return vectors, points
+    return np.concatenate((vectors, points))
 
 def calcLineFromRay(rd, rp, axis, var):
     '''
@@ -138,7 +176,6 @@ def calcLineFromRay(rd, rp, axis, var):
         raise ValueError('CalcLineFromRay: Vector of variable cannot have 0 value')
     m = rd[axis]/rd[var]
     b = -(rp[var]*rd[axis])/rd[var]+rp[axis]
-    #b = (rd[var]*rp[axis]-rp[var]*rd[axis])/rd[var]
     return m, b
 
 def chooseRoot(roots):
@@ -172,15 +209,15 @@ def reflectRayMVPolynomial(p, rd, rp):
         lineYx = np.poly1d([m,b])            # calc poly1ds for y of ray
         m,b = calcLineFromRay(rd,rp,2,0)
         lineZx = np.poly1d([m,b])            # calc poly1ds for y of ray
-        if rd[1] != 0:
-            m,b = calcLineFromRay(rd,rp,2,1)
-            lineZy = np.poly1d([m,b])
-        else:
-            lineZy = np.poly1d(())
-        x,y,z = intersectMVLinePolynomial(p, lineYx, lineZx, lineZy) # intersect line and poly
+        x,y,z = intersectMVLinePolynomial(p, lineYx, lineZx) # intersect line and poly
+    if x is None:
+        return np.array([float('nan')]*3), np.array([float('nan')]*3)
     n = getMVPolyNormal(p,x,y)          # find normal at intersection
     fd = rd - 2*n*(np.dot(rd,n))        # from http://paulbourke.net/geometry/reflected/
     fd = fd/norm(fd)
+    # check reflection direction - ensure it is opposite incomming ray direction
+    n = n if np.dot(n,rd) < 0 else -n
+    fd = -fd if np.dot(fd,n) < 0 else fd
     fp = np.array([x,y,z])
     return fd, fp
 
@@ -201,33 +238,26 @@ def intersectRayPlaneAAA(r,pn,pp):
 def intersectRayPlane(rd,rp,pn,pp):
     denom = np.dot(rd,pn)
     if denom == 0:
-        return None
+        return np.array([float('nan')] * len(rd))
     dist = (np.dot(pp-rp,pn))/denom
     if dist <= 0:
-        return None
+        return np.array([float('nan')] * len(rd))
     return dist*rd + rp 
 
-def intersectMVLinePolynomial(p, lineYx, lineZx, lineZy):
+def intersectMVLinePolynomial(p, lineYx, lineZx):
     '''
       lines need to be poly1d
       p needs to be poly2d
     '''
-    # ToDo: crap, crap, crap!  This isn't going to work:
-    #   projecting the line onto the x axis and then intersecting with the polynomial
-    #   by definition cannot work - its ignoring the effects of y
-    #   is there a way to transform (rotate) the polynomial such that it is aligned? 
-    #       - should be if I add the correct line...but what is the correct line? 
-    #       - should be lineZy...but how to add?
-    #p[:,-1] = np.poly1d(p[:,-1]) + lineZy
-    #print(lineZy)
     flat = partialEvalMVPolynomial(p, lineYx) # convert y's to x's
-    #print('lineYx: %s'%lineYx.coeffs)
-    #print('partialEval: %s'%flat.coeffs)
-    #print('lineZx: %s'%lineZx.coeffs)
     flat -= lineZx       # equate the z's (subtract the lineZx coeffs to poly)
-    #print('flat: %s'%flat.coeffs)
-    #print(flat.r)
-    x = chooseRoot(flat.roots)  # find roots of poly1d
+    #x = chooseRoot(flat.roots)  # find roots of poly1d
+    r = flat.roots
+    r = r[abs(np.imag(r))<.0000001]
+    if len(r) == 0:
+        return float('nan'),float('nan'),float('nan')
+    idx = np.argmin(abs(lineZx(r)-p[-1,-1]))  # choose the root that gets us closest to the intercept of our polynomial
+    x = r[idx]
     y = lineYx(x)        # eval lineYx(x) for y
     z = lineZx(x)        # eval lineZx(x) for z
     return x,y,z
