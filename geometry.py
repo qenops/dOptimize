@@ -3,6 +3,7 @@ import numpy.core.numeric as NX
 from numpy.linalg import norm
 from numpy.lib.function_base import trim_zeros
 from numpy.polynomial.polynomial import polyval2d
+import scipy.optimize as so
 #import numpy.lib.polynomial._raise_power as _raise_power
 
 def rayTrace():
@@ -72,7 +73,7 @@ def mvpolyfit():
 
 
 
-def optimizeDepth(p0, order, targetCenter, pupilCenter=np.array([0.,0.,0.]), fov=60, numTargets=11, targetAxes=2, numRays=11, **kwargs):
+def optimizeDepth(p0, order, bounds, targetCenter, pupilCenter=np.array([0.,0.,0.]), fov=60, numTargets=11, targetAxes=2, numRays=11, even=True, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1]), **kwargs):
     # generate realWorld Target points
     dist = norm(targetCenter - pupilCenter)
     targetNormal = dnorm(pupilCenter-targetCenter)
@@ -86,11 +87,13 @@ def optimizeDepth(p0, order, targetCenter, pupilCenter=np.array([0.,0.,0.]), fov
         pupilRays[idx] = generateRayBundle(realPoint, pupilRadius, numAxis=2, numRays=numRays, **kwargs)
 
     # do the optimization
-
+    p0 = np.asarray(p0)
+    # x, f, d = so.fmin_l_bfgs_b(calcLoss, p0, args=[order, pupilRays, even, displayNormal, displayPoint], approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10)
+    return so.fmin_l_bfgs_b(calcLoss, p0, args=[order, pupilRays, even, displayNormal, displayPoint], approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10)
 
     #np.apply_along_axis(calcLossAAA, 1, realWorldPoints, p, **kwargs)
 
-def calcLoss(p, order, pupilRays, even=True, **kwargs):
+def calcLoss(p, order, pupilRays, even=True, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1])):
     # build the polynomial: p has to be passed in as a 1d array and all top half elements are zero
     step = 2 if even else 1
     pLen = order//step+1
@@ -98,21 +101,23 @@ def calcLoss(p, order, pupilRays, even=True, **kwargs):
     expectedLength = pLen**2 - np.sum(range(pLen))
     if len(p) != expectedLength:
         raise ValueError('CalcLoss:  length of p is %s, but expected %s'%(len(p), expectedLength))
+
     p = np.asarray(p)
     l = np.array(range(pLen,1,-1))
     l = np.insert(l,0,0)
     l = np.cumsum(l).astype(int)
     for i in range(pLen):               # fill in the triangle of values
         p0[i:,-1-i] = p[l[:pLen-i]+i]   # don't worry - its magic
+        
     poly = np.zeros((order+1,order+1))
     poly[::step,::step] = p0            # if this is even, all odd values are fixed at zero
     results = np.zeros((pupilRays.shape[0], 3))
     for idx, raySet in enumerate(pupilRays):
-        results[idx] = np.std(calcSpotDiagram(poly, pupilRays, **kwargs), axis=0)
-    return np.sum(results**2)
+        results[idx] = np.std(calcSpotDiagram(poly, raySet, displayNormal, displayPoint), axis=0)
+    return np.sum(results)
 
-def calcSpotDiagram(p, pupilRays, displayNormal=np.array((0,0,1)), displayPoint=np.array((0,0,1)), **kwargs):
-    reflectedRays = np.apply_along_axis(reflectRayMVPolynomialAAA, 1, pupilRays,axis=1), p)
+def calcSpotDiagram(p, pupilRays, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1])):
+    reflectedRays = np.apply_along_axis(reflectRayMVPolynomialAAA, 1, pupilRays, p)
     reflectedRays = reflectedRays[~np.isnan(reflectedRays).any(axis=1)]
     if len(reflectedRays) == 0:
         return np.array([[float('nan')]*3])
@@ -164,7 +169,7 @@ def generateRayBundle(realPoint, pupilRadius, pupilCenter=np.array([0.,0.,0.]), 
     points = generatePoints(pupilRadius, pupilCenter, pupilNormal, numRays, numAxis, includeNegatives)
     vectors = realPoint - points
     vectors = np.apply_along_axis(dnorm,1,vectors)
-    return np.concatenate((vectors, points))
+    return np.concatenate((vectors, points),axis=1)
 
 def calcLineFromRay(rd, rp, axis, var):
     '''
