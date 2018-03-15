@@ -84,7 +84,7 @@ def test():
     return end-start, x,f,d
 
 # Topfoison display has pixel pitch of .05mm
-def optimizeDepth(p0, order, bounds, targetCenter, pupilCenter=np.array([0.,0.,0.]), fov=60, numTargets=11, targetAxes=2, numRays=11, even=True, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1]), **kwargs):
+def optimizeDepth(p0, order, bounds, targetCenter, pupilRadius=.4, pupilCenter=np.array([0.,0.,0.]), fov=60, numTargets=11, targetAxes=2, numRays=11, even=True, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1]), **kwargs):
     # generate realWorld Target points
     dist = norm(targetCenter - pupilCenter)
     targetNormal = dnorm(pupilCenter-targetCenter)
