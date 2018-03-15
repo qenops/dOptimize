@@ -100,7 +100,7 @@ def optimizeDepth(p0, order, bounds, targetCenter, pupilRadius=.4, pupilCenter=n
     # do the optimization
     p0 = np.asarray(p0)
     # x, f, d = so.fmin_l_bfgs_b(do.calcLoss, p0, args=(order, pupilRays, even, displayNormal, displayPoint), approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10,iprint=99)
-    return so.fmin_l_bfgs_b(calcLoss, p0, args=[order, pupilRays, even, displayNormal, displayPoint], approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10, iprint=101)
+    return so.fmin_l_bfgs_b(calcLoss, p0, args=(order, pupilRays, even, displayNormal, displayPoint), approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10, iprint=101)
 
     #np.apply_along_axis(calcLossAAA, 1, realWorldPoints, p, **kwargs)
 
