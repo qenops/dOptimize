@@ -4,6 +4,7 @@ from numpy.linalg import norm
 from numpy.lib.function_base import trim_zeros
 from numpy.polynomial.polynomial import polyval2d
 import scipy.optimize as so
+import math, time
 #import numpy.lib.polynomial._raise_power as _raise_power
 
 def rayTrace():
@@ -77,7 +78,10 @@ def test():
     b2 = (-0.1, 0.1)
     b0 = (5, 5)
     bounds = (b4,b4,b4,b2,b2,b0)
-    return optimizeDepth(x, 4, bounds, np.array([0,0,200]))
+    start = time.time()
+    x,f,d = optimizeDepth(x, 4, bounds, np.array([0,0,200]))
+    end = time.time()
+    return end-start, x,f,d
 
 # Topfoison display has pixel pitch of .05mm
 def optimizeDepth(p0, order, bounds, targetCenter, pupilCenter=np.array([0.,0.,0.]), fov=60, numTargets=11, targetAxes=2, numRays=11, even=True, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1]), **kwargs):
@@ -96,7 +100,7 @@ def optimizeDepth(p0, order, bounds, targetCenter, pupilCenter=np.array([0.,0.,0
     # do the optimization
     p0 = np.asarray(p0)
     # x, f, d = so.fmin_l_bfgs_b(do.calcLoss, p0, args=(order, pupilRays, even, displayNormal, displayPoint), approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10,iprint=99)
-    return so.fmin_l_bfgs_b(calcLoss, p0, args=[order, pupilRays, even, displayNormal, displayPoint], approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10)
+    return so.fmin_l_bfgs_b(calcLoss, p0, args=[order, pupilRays, even, displayNormal, displayPoint], approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10, iprint=101)
 
     #np.apply_along_axis(calcLossAAA, 1, realWorldPoints, p, **kwargs)
 
