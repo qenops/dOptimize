@@ -71,8 +71,15 @@ def mvpolyfit():
 
     coeff, r, rank, s = np.linalg.lstsq(A, B)
 
+def test():
+    x = np.array([ -6.63061834e-04,  -7.09514262e-04,  -6.63061834e-04, -6.74832999e-02,  -6.74832999e-02, 5])
+    b4 = (-0.01, 0.0001)
+    b2 = (-0.1, 0.1)
+    b0 = (5, 5)
+    bounds = (b4,b4,b4,b2,b2,b0)
+    return optimizeDepth(x, 4, bounds, np.array([0,0,200]))
 
-
+# Topfoison display has pixel pitch of .05mm
 def optimizeDepth(p0, order, bounds, targetCenter, pupilCenter=np.array([0.,0.,0.]), fov=60, numTargets=11, targetAxes=2, numRays=11, even=True, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1]), **kwargs):
     # generate realWorld Target points
     dist = norm(targetCenter - pupilCenter)
@@ -88,12 +95,12 @@ def optimizeDepth(p0, order, bounds, targetCenter, pupilCenter=np.array([0.,0.,0
 
     # do the optimization
     p0 = np.asarray(p0)
-    # x, f, d = so.fmin_l_bfgs_b(calcLoss, p0, args=[order, pupilRays, even, displayNormal, displayPoint], approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10)
+    # x, f, d = so.fmin_l_bfgs_b(do.calcLoss, p0, args=(order, pupilRays, even, displayNormal, displayPoint), approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10,iprint=99)
     return so.fmin_l_bfgs_b(calcLoss, p0, args=[order, pupilRays, even, displayNormal, displayPoint], approx_grad=True, epsilon=1e-14, bounds=bounds, maxiter=10)
 
     #np.apply_along_axis(calcLossAAA, 1, realWorldPoints, p, **kwargs)
 
-def calcLoss(p, order, pupilRays, even=True, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1])):
+def calcLoss(p, order, pupilRays, even=True, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1]), sum=True):
     # build the polynomial: p has to be passed in as a 1d array and all top half elements are zero
     step = 2 if even else 1
     pLen = order//step+1
@@ -114,7 +121,10 @@ def calcLoss(p, order, pupilRays, even=True, displayNormal=np.array([0,0,1]), di
     results = np.zeros((pupilRays.shape[0], 3))
     for idx, raySet in enumerate(pupilRays):
         results[idx] = np.std(calcSpotDiagram(poly, raySet, displayNormal, displayPoint), axis=0)
-    return np.sum(results)
+    if sum:
+        return np.sum(results)
+    else:
+        return results
 
 def calcSpotDiagram(p, pupilRays, displayNormal=np.array([0,0,1]), displayPoint=np.array([0,0,1])):
     reflectedRays = np.apply_along_axis(reflectRayMVPolynomialAAA, 1, pupilRays, p)
